@@ -1,13 +1,14 @@
-
 import React, { useState, useEffect } from "react";
-import { firebaseDB } from "@/lib/firebase";
+import { supabase } from "@/integrations/supabase/client";
 import { 
   Card, CardContent, CardDescription, CardHeader, CardTitle
 } from "@/components/ui/card";
 import { 
   Users, UserCheck, AlertTriangle, Calendar, 
-  Clock, Clipboard, BarChart 
+  Clock, Clipboard
 } from "lucide-react";
+import { AttendanceChart } from "@/components/analytics/AttendanceChart";
+import { MembershipChart } from "@/components/analytics/MembershipChart";
 
 const Dashboard: React.FC = () => {
   const [stats, setStats] = useState({
@@ -26,40 +27,82 @@ const Dashboard: React.FC = () => {
   });
   
   const [loading, setLoading] = useState(true);
+  const [attendanceData, setAttendanceData] = useState([]);
+  const [membershipData, setMembershipData] = useState([]);
   
   // Carregar estatísticas
   useEffect(() => {
-    const loadStats = async () => {
+    const loadData = async () => {
       try {
-        // Em uma implementação real, estes dados viriam do Firebase
-        const members = await firebaseDB.getAll('members');
-        
-        // Cálculo de estatísticas básicas
-        const activeMembers = members.filter(m => m.status === 'Ativo');
-        const inactiveMembers = members.filter(m => m.status === 'Inativo');
-        
-        // Contagem por categoria
-        const categories = {
-          jovem: members.filter(m => m.category === 'Jovem').length,
-          mama: members.filter(m => m.category === 'Mamã').length,
-          papa: members.filter(m => m.category === 'Papá').length,
-          visitante: members.filter(m => m.category === 'Visitante').length
-        };
-        
-        // Simular estatísticas de presença
-        const totalAttendance = Math.floor(Math.random() * 100) + 50;
-        const averageAttendance = Math.floor(Math.random() * 50) + 30;
-        const absenceCount = Math.floor(Math.random() * 20) + 5;
-        
-        setStats({
-          totalMembers: members.length,
-          activeMembers: activeMembers.length,
-          inactiveMembers: inactiveMembers.length,
-          totalAttendance,
-          averageAttendance,
-          absenceCount,
-          categories
-        });
+        // Get members data
+        const { data: members } = await supabase
+          .from('membros')
+          .select('*');
+
+        if (members) {
+          const activeMembers = members.filter(m => m.status === 'Ativo');
+          const inactiveMembers = members.filter(m => m.status === 'Inativo');
+          
+          // Calculate category distribution
+          const categories = {
+            jovem: members.filter(m => m.categoria === 'Jovem').length,
+            mama: members.filter(m => m.categoria === 'Mamã').length,
+            papa: members.filter(m => m.categoria === 'Papá').length,
+            visitante: members.filter(m => m.categoria === 'Visitante').length
+          };
+
+          setStats({
+            totalMembers: members.length,
+            activeMembers: activeMembers.length,
+            inactiveMembers: inactiveMembers.length,
+            totalAttendance: 0, // Will be updated with real data
+            averageAttendance: 0, // Will be calculated
+            absenceCount: 0, // Will be calculated
+            categories
+          });
+
+          // Prepare membership chart data
+          setMembershipData([
+            { name: 'Jovens', value: categories.jovem, color: '#3b82f6' },
+            { name: 'Mamãs', value: categories.mama, color: '#ec4899' },
+            { name: 'Papás', value: categories.papa, color: '#f59e0b' },
+            { name: 'Visitantes', value: categories.visitante, color: '#10b981' }
+          ]);
+        }
+
+        // Get attendance data for the last 5 services
+        const { data: attendance } = await supabase
+          .from('presencas')
+          .select('culto, data, presente')
+          .order('data', { ascending: false })
+          .limit(50);
+
+        if (attendance) {
+          // Group and process attendance data
+          const attendanceByService = attendance.reduce((acc: any, curr) => {
+            if (!acc[curr.culto]) {
+              acc[curr.culto] = { presentes: 0, ausentes: 0 };
+            }
+            if (curr.presente) {
+              acc[curr.culto].presentes++;
+            } else {
+              acc[curr.culto].ausentes++;
+            }
+            return acc;
+          }, {});
+
+          // Convert to chart format
+          const chartData = Object.entries(attendanceByService)
+            .map(([culto, data]: [string, any]) => ({
+              culto,
+              presentes: data.presentes,
+              ausentes: data.ausentes
+            }))
+            .slice(0, 5); // Get only last 5 services
+
+          setAttendanceData(chartData);
+        }
+
       } catch (error) {
         console.error("Erro ao carregar estatísticas:", error);
       } finally {
@@ -67,7 +110,7 @@ const Dashboard: React.FC = () => {
       }
     };
     
-    loadStats();
+    loadData();
   }, []);
   
   // Obter data atual
@@ -187,6 +230,12 @@ const Dashboard: React.FC = () => {
             </p>
           </CardContent>
         </Card>
+      </div>
+      
+      {/* Analytics Charts */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <AttendanceChart data={attendanceData} loading={loading} />
+        <MembershipChart data={membershipData} loading={loading} />
       </div>
       
       {/* Seção inferior */}
