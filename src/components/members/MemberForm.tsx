@@ -122,7 +122,7 @@ export const MemberForm: React.FC<MemberFormProps> = ({
             categoria: formData.category,
             status: formData.status,
             funcao: formData.role,
-            atualizado_em: new Date()
+            atualizado_em: new Date().toISOString() // Convert Date to ISO string
           })
           .eq('id', member.id);
           

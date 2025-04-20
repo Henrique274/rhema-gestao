@@ -6,6 +6,38 @@ import { Member } from "@/types";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 
+// Helper function to validate and convert gender values
+const validateGender = (value: string): 'Masculino' | 'Feminino' | 'Outro' => {
+  if (value === 'Masculino' || value === 'Feminino' || value === 'Outro') {
+    return value;
+  }
+  return 'Outro';
+};
+
+// Helper function to validate and convert category values
+const validateCategory = (value: string): 'Jovem' | 'Mamã' | 'Papá' | 'Visitante' => {
+  if (value === 'Jovem' || value === 'Mamã' || value === 'Papá' || value === 'Visitante') {
+    return value;
+  }
+  return 'Jovem';
+};
+
+// Helper function to validate and convert status values
+const validateStatus = (value: string): 'Ativo' | 'Inativo' => {
+  if (value === 'Ativo' || value === 'Inativo') {
+    return value;
+  }
+  return 'Ativo';
+};
+
+// Helper function to validate and convert role values
+const validateRole = (value: string): 'Obreiro' | 'Discípulo' | 'Em Formação' => {
+  if (value === 'Obreiro' || value === 'Discípulo' || value === 'Em Formação') {
+    return value;
+  }
+  return 'Em Formação';
+};
+
 const MemberEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -34,16 +66,17 @@ const MemberEditPage: React.FC = () => {
         
         if (data) {
           // Mapeando os campos do banco para o formato do componente
+          // com validação de tipos para garantir a conformidade com a interface Member
           const mappedMember: Member = {
             id: data.id,
             name: data.nome,
             age: data.idade,
-            gender: data.genero,
+            gender: validateGender(data.genero),
             phone: data.telefone,
             address: data.endereco,
-            category: data.categoria,
-            status: data.status,
-            role: data.funcao,
+            category: validateCategory(data.categoria),
+            status: validateStatus(data.status),
+            role: validateRole(data.funcao),
           };
           
           setMember(mappedMember);
