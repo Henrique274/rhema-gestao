@@ -2,8 +2,9 @@
 import React, { useState } from "react";
 import { Link } from "react-router-dom";
 import { Member } from "@/types";
-import { firebaseDB } from "@/lib/firebase";
+import { supabase } from "@/integrations/supabase/client";
 import { Edit, Trash2, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 interface MemberListItemProps {
   member: Member;
@@ -16,6 +17,7 @@ export const MemberListItem: React.FC<MemberListItemProps> = ({
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const { toast } = useToast();
   
   // Formatação da data de criação
   const formatDate = (date?: Date) => {
@@ -30,11 +32,27 @@ export const MemberListItem: React.FC<MemberListItemProps> = ({
     setIsDeleting(true);
     
     try {
-      await firebaseDB.delete('members', member.id);
+      const { error } = await supabase
+        .from('membros')
+        .delete()
+        .eq('id', member.id);
+        
+      if (error) throw error;
+      
+      toast({
+        title: "Membro excluído",
+        description: "O membro foi excluído com sucesso",
+        variant: "default"
+      });
+      
       onRefresh();
     } catch (error) {
       console.error("Erro ao excluir membro:", error);
-      alert("Erro ao excluir membro. Por favor, tente novamente.");
+      toast({
+        title: "Erro",
+        description: "Erro ao excluir membro. Por favor, tente novamente.",
+        variant: "destructive"
+      });
     } finally {
       setIsDeleting(false);
       setShowDeleteConfirm(false);

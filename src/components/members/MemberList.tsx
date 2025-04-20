@@ -2,15 +2,49 @@
 import React, { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Member } from "@/types";
-import { firebaseDB } from "@/lib/firebase";
+import { supabase } from "@/integrations/supabase/client";
 import { MemberListItem } from "./MemberListItem";
 import { Search, RefreshCw, UserPlus } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+// Helper function para validar e converter valores de gênero
+const validateGender = (value: string | null): 'Masculino' | 'Feminino' | 'Outro' => {
+  if (value === 'Masculino' || value === 'Feminino' || value === 'Outro') {
+    return value;
+  }
+  return 'Outro';
+};
+
+// Helper function para validar e converter valores de categoria
+const validateCategory = (value: string | null): 'Jovem' | 'Mamã' | 'Papá' | 'Visitante' => {
+  if (value === 'Jovem' || value === 'Mamã' || value === 'Papá' || value === 'Visitante') {
+    return value;
+  }
+  return 'Jovem';
+};
+
+// Helper function para validar e converter valores de status
+const validateStatus = (value: string | null): 'Ativo' | 'Inativo' => {
+  if (value === 'Ativo' || value === 'Inativo') {
+    return value;
+  }
+  return 'Ativo';
+};
+
+// Helper function para validar e converter valores de função
+const validateRole = (value: string | null): 'Obreiro' | 'Discípulo' | 'Em Formação' => {
+  if (value === 'Obreiro' || value === 'Discípulo' || value === 'Em Formação') {
+    return value;
+  }
+  return 'Em Formação';
+};
 
 export const MemberList: React.FC = () => {
   const [members, setMembers] = useState<Member[]>([]);
   const [filteredMembers, setFilteredMembers] = useState<Member[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { toast } = useToast();
   
   // Filtros
   const [searchTerm, setSearchTerm] = useState("");
@@ -18,18 +52,43 @@ export const MemberList: React.FC = () => {
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [roleFilter, setRoleFilter] = useState<string>("all");
   
-  // Carregar membros
+  // Carregar membros do Supabase
   const loadMembers = async () => {
     setIsLoading(true);
     setError(null);
     
     try {
-      const data = await firebaseDB.getAll('members');
-      setMembers(data);
-      setFilteredMembers(data);
+      const { data, error } = await supabase
+        .from('membros')
+        .select('*');
+        
+      if (error) throw error;
+      
+      if (data) {
+        // Mapeando os dados do Supabase para o formato Member
+        const mappedMembers: Member[] = data.map(member => ({
+          id: member.id,
+          name: member.nome,
+          age: member.idade || 0,
+          gender: validateGender(member.genero),
+          phone: member.telefone || '',
+          address: member.endereco || '',
+          category: validateCategory(member.categoria),
+          status: validateStatus(member.status),
+          role: validateRole(member.funcao),
+        }));
+        
+        setMembers(mappedMembers);
+        setFilteredMembers(mappedMembers);
+      }
     } catch (error) {
       console.error("Erro ao carregar membros:", error);
       setError("Não foi possível carregar a lista de membros.");
+      toast({
+        title: "Erro",
+        description: "Não foi possível carregar a lista de membros.",
+        variant: "destructive",
+      });
     } finally {
       setIsLoading(false);
     }
