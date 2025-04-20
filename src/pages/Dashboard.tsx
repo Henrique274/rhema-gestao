@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
@@ -5,7 +6,7 @@ import {
 } from "@/components/ui/card";
 import { 
   Users, UserCheck, AlertTriangle, Calendar, 
-  Clock, Clipboard
+  Clock, Clipboard, BarChart
 } from "lucide-react";
 import { AttendanceChart } from "@/components/analytics/AttendanceChart";
 import { MembershipChart } from "@/components/analytics/MembershipChart";
