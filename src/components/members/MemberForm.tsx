@@ -2,7 +2,11 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { Member } from "@/types";
-import { firebaseDB } from "@/lib/firebase";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 
 interface MemberFormProps {
   member?: Member;
@@ -14,6 +18,7 @@ export const MemberForm: React.FC<MemberFormProps> = ({
   isEditing = false 
 }) => {
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   // Estado inicial do formulário
   const [formData, setFormData] = useState<Member>({
@@ -30,7 +35,6 @@ export const MemberForm: React.FC<MemberFormProps> = ({
   // Estados de validação e submissão
   const [errors, setErrors] = useState<Partial<Record<keyof Member, string>>>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [submitSuccess, setSubmitSuccess] = useState(false);
   
   // Populando os dados no caso de edição
   useEffect(() => {
@@ -106,21 +110,53 @@ export const MemberForm: React.FC<MemberFormProps> = ({
     
     try {
       if (isEditing && member?.id) {
-        // Atualizando membro existente
-        await firebaseDB.update('members', member.id, {
-          ...formData,
-          updatedAt: new Date()
+        // Salvando no Supabase - atualizando membro existente
+        const { error } = await supabase
+          .from('membros')
+          .update({
+            nome: formData.name,
+            idade: formData.age,
+            genero: formData.gender,
+            telefone: formData.phone,
+            endereco: formData.address,
+            categoria: formData.category,
+            status: formData.status,
+            funcao: formData.role,
+            atualizado_em: new Date()
+          })
+          .eq('id', member.id);
+          
+        if (error) throw error;
+        
+        toast({
+          title: "Membro atualizado",
+          description: "As informações do membro foram atualizadas com sucesso",
+          variant: "default"
         });
       } else {
-        // Criando novo membro
-        await firebaseDB.add('members', {
-          ...formData,
-          createdAt: new Date(),
-          updatedAt: new Date()
+        // Salvando no Supabase - criando novo membro
+        const { error } = await supabase
+          .from('membros')
+          .insert({
+            nome: formData.name,
+            idade: formData.age,
+            genero: formData.gender,
+            telefone: formData.phone,
+            endereco: formData.address,
+            categoria: formData.category,
+            status: formData.status,
+            funcao: formData.role,
+            data_entrada: new Date().toISOString().split('T')[0]
+          });
+          
+        if (error) throw error;
+        
+        toast({
+          title: "Membro cadastrado",
+          description: "Novo membro cadastrado com sucesso",
+          variant: "default"
         });
       }
-      
-      setSubmitSuccess(true);
       
       // Redirecionando após sucesso
       setTimeout(() => {
@@ -129,6 +165,11 @@ export const MemberForm: React.FC<MemberFormProps> = ({
       
     } catch (error) {
       console.error("Erro ao salvar membro:", error);
+      toast({
+        title: "Erro",
+        description: "Ocorreu um erro ao salvar os dados do membro. Por favor, tente novamente.",
+        variant: "destructive"
+      });
     } finally {
       setIsSubmitting(false);
     }
@@ -137,34 +178,20 @@ export const MemberForm: React.FC<MemberFormProps> = ({
   return (
     <div className="bg-white shadow-md rounded-lg p-6">
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Mensagem de sucesso */}
-        {submitSuccess && (
-          <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative">
-            <strong className="font-bold">Sucesso! </strong>
-            <span className="block sm:inline">
-              {isEditing 
-                ? "Membro atualizado com sucesso." 
-                : "Novo membro cadastrado com sucesso."}
-            </span>
-          </div>
-        )}
         
         {/* Campos de formulário */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Nome completo */}
           <div className="space-y-2">
-            <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="name" className="text-sm font-medium text-gray-700">
               Nome completo *
-            </label>
-            <input
-              type="text"
+            </Label>
+            <Input
               id="name"
               name="name"
               value={formData.name}
               onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md ${
-                errors.name ? 'border-red-500' : 'border-gray-300'
-              } focus:outline-none focus:ring-2 focus:ring-church-500`}
+              className={errors.name ? 'border-red-500' : ''}
             />
             {errors.name && (
               <p className="text-red-500 text-xs">{errors.name}</p>
@@ -173,18 +200,16 @@ export const MemberForm: React.FC<MemberFormProps> = ({
           
           {/* Idade */}
           <div className="space-y-2">
-            <label htmlFor="age" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="age" className="text-sm font-medium text-gray-700">
               Idade *
-            </label>
-            <input
+            </Label>
+            <Input
               type="number"
               id="age"
               name="age"
               value={formData.age || ''}
               onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md ${
-                errors.age ? 'border-red-500' : 'border-gray-300'
-              } focus:outline-none focus:ring-2 focus:ring-church-500`}
+              className={errors.age ? 'border-red-500' : ''}
             />
             {errors.age && (
               <p className="text-red-500 text-xs">{errors.age}</p>
@@ -193,9 +218,9 @@ export const MemberForm: React.FC<MemberFormProps> = ({
           
           {/* Gênero */}
           <div className="space-y-2">
-            <label htmlFor="gender" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="gender" className="text-sm font-medium text-gray-700">
               Gênero *
-            </label>
+            </Label>
             <select
               id="gender"
               name="gender"
@@ -211,18 +236,16 @@ export const MemberForm: React.FC<MemberFormProps> = ({
           
           {/* Telefone */}
           <div className="space-y-2">
-            <label htmlFor="phone" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="phone" className="text-sm font-medium text-gray-700">
               Telefone *
-            </label>
-            <input
+            </Label>
+            <Input
               type="tel"
               id="phone"
               name="phone"
               value={formData.phone}
               onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md ${
-                errors.phone ? 'border-red-500' : 'border-gray-300'
-              } focus:outline-none focus:ring-2 focus:ring-church-500`}
+              className={errors.phone ? 'border-red-500' : ''}
             />
             {errors.phone && (
               <p className="text-red-500 text-xs">{errors.phone}</p>
@@ -231,18 +254,16 @@ export const MemberForm: React.FC<MemberFormProps> = ({
           
           {/* Morada (Endereço) */}
           <div className="space-y-2 md:col-span-2">
-            <label htmlFor="address" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="address" className="text-sm font-medium text-gray-700">
               Morada (Endereço) *
-            </label>
-            <input
+            </Label>
+            <Input
               type="text"
               id="address"
               name="address"
               value={formData.address}
               onChange={handleChange}
-              className={`w-full px-3 py-2 border rounded-md ${
-                errors.address ? 'border-red-500' : 'border-gray-300'
-              } focus:outline-none focus:ring-2 focus:ring-church-500`}
+              className={errors.address ? 'border-red-500' : ''}
             />
             {errors.address && (
               <p className="text-red-500 text-xs">{errors.address}</p>
@@ -251,9 +272,9 @@ export const MemberForm: React.FC<MemberFormProps> = ({
           
           {/* Categoria */}
           <div className="space-y-2">
-            <label htmlFor="category" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="category" className="text-sm font-medium text-gray-700">
               Categoria *
-            </label>
+            </Label>
             <select
               id="category"
               name="category"
@@ -270,9 +291,9 @@ export const MemberForm: React.FC<MemberFormProps> = ({
           
           {/* Status */}
           <div className="space-y-2">
-            <label htmlFor="status" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="status" className="text-sm font-medium text-gray-700">
               Status *
-            </label>
+            </Label>
             <select
               id="status"
               name="status"
@@ -287,9 +308,9 @@ export const MemberForm: React.FC<MemberFormProps> = ({
           
           {/* Função na igreja */}
           <div className="space-y-2">
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+            <Label htmlFor="role" className="text-sm font-medium text-gray-700">
               Função na igreja *
-            </label>
+            </Label>
             <select
               id="role"
               name="role"
@@ -306,22 +327,20 @@ export const MemberForm: React.FC<MemberFormProps> = ({
         
         {/* Botões de ação */}
         <div className="flex justify-end space-x-3 pt-4">
-          <button
+          <Button
             type="button"
+            variant="outline"
             onClick={() => navigate('/members')}
-            className="px-4 py-2 border border-gray-300 rounded-md shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-church-500"
           >
             Cancelar
-          </button>
-          <button
+          </Button>
+          <Button
             type="submit"
             disabled={isSubmitting}
-            className={`px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-church-600 hover:bg-church-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-church-500 ${
-              isSubmitting ? 'opacity-70 cursor-not-allowed' : ''
-            }`}
+            className={isSubmitting ? 'opacity-70 cursor-not-allowed' : ''}
           >
             {isSubmitting ? 'Salvando...' : isEditing ? 'Atualizar' : 'Cadastrar'}
-          </button>
+          </Button>
         </div>
       </form>
     </div>

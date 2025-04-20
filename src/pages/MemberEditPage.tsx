@@ -3,11 +3,13 @@ import React, { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { MemberForm } from "@/components/members/MemberForm";
 import { Member } from "@/types";
-import { firebaseDB } from "@/lib/firebase";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const MemberEditPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { toast } = useToast();
   
   const [member, setMember] = useState<Member | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -21,25 +23,48 @@ const MemberEditPage: React.FC = () => {
       setError(null);
       
       try {
-        // Simulação de busca de membro por ID
-        const members = await firebaseDB.getAll('members');
-        const foundMember = members.find(m => m.id === id);
+        // Busca o membro diretamente no Supabase
+        const { data, error } = await supabase
+          .from('membros')
+          .select('*')
+          .eq('id', id)
+          .single();
         
-        if (foundMember) {
-          setMember(foundMember);
+        if (error) throw error;
+        
+        if (data) {
+          // Mapeando os campos do banco para o formato do componente
+          const mappedMember: Member = {
+            id: data.id,
+            name: data.nome,
+            age: data.idade,
+            gender: data.genero,
+            phone: data.telefone,
+            address: data.endereco,
+            category: data.categoria,
+            status: data.status,
+            role: data.funcao,
+          };
+          
+          setMember(mappedMember);
         } else {
           setError("Membro não encontrado");
         }
       } catch (error) {
         console.error("Erro ao carregar membro:", error);
         setError("Erro ao carregar dados do membro");
+        toast({
+          title: "Erro",
+          description: "Não foi possível carregar os dados do membro",
+          variant: "destructive"
+        });
       } finally {
         setIsLoading(false);
       }
     };
     
     loadMember();
-  }, [id]);
+  }, [id, toast]);
   
   if (isLoading) {
     return (
